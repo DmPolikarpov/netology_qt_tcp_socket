@@ -40,6 +40,7 @@ TCPclient::TCPclient(QObject *parent) : QObject(parent)
     connect(socket, &QTcpSocket::disconnected, this, &TCPclient::onDisconnected);
     connect(socket, QOverload<QAbstractSocket::SocketError>::of(&QTcpSocket::error),
                 this, &TCPclient::onErrorOccurred);
+    connect(socket, &QTcpSocket::readyRead, this, &TCPclient::ReadyReed);
 }
 
 /* write
@@ -48,8 +49,11 @@ TCPclient::TCPclient(QObject *parent) : QObject(parent)
 */
 void TCPclient::SendRequest(ServiceHeader head)
 {
+    QByteArray sendHdr;
+    QDataStream outStream(&sendHdr, QIODevice::WriteOnly);
+    outStream << head;
 
-
+    socket->write(sendHdr);
 }
 
 /* write
@@ -57,7 +61,12 @@ void TCPclient::SendRequest(ServiceHeader head)
 */
 void TCPclient::SendData(ServiceHeader head, QString str)
 {
+    QByteArray sendData;
+    QDataStream outStream(&sendData, QIODevice::WriteOnly);
+    outStream << head;
+    outStream << str;
 
+    socket->write(sendData);
 
 }
 
@@ -148,11 +157,38 @@ void TCPclient::ProcessingData(ServiceHeader header, QDataStream &stream)
 
     switch (header.idData){
 
-        case GET_TIME:
-        case GET_SIZE:
-        case GET_STAT:
-        case SET_DATA:
+        case GET_TIME: {
+            QDateTime time;
+            stream >> time;
+            emit sig_sendTime(time);
+            break;
+        }
+        case GET_SIZE: {
+            uint32_t freeSpace;
+            stream >> freeSpace;
+            emit sig_sendFreeSize(freeSpace);
+            break;
+        }
+        case GET_STAT: {
+            StatServer stat;
+            stream >> stat.incBytes;
+            stream >> stat.sendBytes;
+            stream >> stat.revPck;
+            stream >> stat.sendPck;
+            stream >> stat.workTime;
+            stream >> stat.clients;
+            emit sig_sendStat(stat);
+            break;
+        }
+        case SET_DATA: {
+            QString data;
+            stream >> data;
+            emit sig_SendReplyForSetData(data);
+            break;
+        }
         case CLEAR_DATA:
+            emit sig_Success(CLEAR_DATA);
+            break;
         default:
             return;
 

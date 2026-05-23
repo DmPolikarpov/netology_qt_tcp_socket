@@ -37,6 +37,11 @@ MainWindow::MainWindow(QWidget *parent)
   * Соединяем сигналы со слотами
  */
     connect(client, &TCPclient::sig_connectStatus, this, &MainWindow::DisplayConnectStatus);
+    connect(client, &TCPclient::sig_sendTime, this, &MainWindow::DisplayTime);
+    connect(client, &TCPclient::sig_sendStat, this, &MainWindow::DisplayStat);
+    connect(client, &TCPclient::sig_sendFreeSize, this, &MainWindow::DisplayFreeSpace);
+    connect(client, &TCPclient::sig_SendReplyForSetData, this, &MainWindow::SetDataReply);
+    connect(client, &TCPclient::sig_Success, this, &MainWindow::DisplaySuccess);
 
 }
 
@@ -50,19 +55,26 @@ MainWindow::~MainWindow()
  */
 void MainWindow::DisplayTime(QDateTime time)
 {
-
+    ui->tb_result->append("Время на сервере: " + time.toString());
 }
 void MainWindow::DisplayFreeSpace(uint32_t freeSpace)
 {
-
+    ui->tb_result->append("Свободное мето на сервере: " + QString::number(freeSpace));
 }
 void MainWindow::SetDataReply(QString replyString)
 {
-
+    ui->tb_result->append("Ответ сервера: " + replyString);
 }
 void MainWindow::DisplayStat(StatServer stat)
 {
-
+    ui->tb_result->append("=== Статистика сервера ===");
+    ui->tb_result->append("Принято байт: " + QString::number(stat.incBytes));
+    ui->tb_result->append("Передано байт: " + QString::number(stat.sendBytes));
+    ui->tb_result->append("Принято пакетов: " + QString::number(stat.revPck));
+    ui->tb_result->append("Передано пакетов: " + QString::number(stat.sendPck));
+    ui->tb_result->append("Время работы (сек): " + QString::number(stat.workTime));
+    ui->tb_result->append("Подключено клиентов: " + QString::number(stat.clients));
+    ui->tb_result->append("=========================");
 }
 void MainWindow::DisplayError(uint16_t error)
 {
@@ -81,6 +93,7 @@ void MainWindow::DisplaySuccess(uint16_t typeMess)
 {
     switch (typeMess) {
     case CLEAR_DATA:
+        ui->tb_result->append("Данные успешно очищены");
     default:
         break;
     }
@@ -153,14 +166,30 @@ void MainWindow::on_pb_request_clicked()
 
        //Получить время
        case 0:
+            header.idData = GET_TIME;
+            header.status = TYPE_REQ; // тип сообщения: запрос
+            header.len = 0;
+            break;
        //Получить свободное место
        case 1:
+           header.idData = GET_SIZE;
+           header.status = TYPE_REQ;
+           break;
        //Получить статистику
        case 2:
+            header.idData = GET_STAT;
+            header.status = TYPE_REQ;
+            break;
        //Отправить данные
        case 3:
+            header.idData = SET_DATA;
+            header.status = TYPE_REQ;
+            break;
        //Очистить память на сервере
        case 4:
+           header.idData = CLEAR_DATA;
+           header.status = TYPE_REQ;
+           break;
        default:
        ui->tb_result->append("Такой запрос не реализован в текущей версии");
        return;
@@ -168,7 +197,6 @@ void MainWindow::on_pb_request_clicked()
    }
 
    client->SendRequest(header);
-
 }
 
 /*!
